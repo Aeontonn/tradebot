@@ -1,7 +1,7 @@
-"""Paper-mäklare: simulerar affärer med spread och avgift, och loggar allt i databasen.
+"""Paper broker: simulates trades with spread and fee, and logs everything in the database.
 
-För att byta till en riktig mäklare (OANDA, Interactive Brokers) skriver du en klass
-med samma metoder (buy, sell) som lägger riktiga ordrar och loggar dem på samma sätt.
+To switch to a real broker (OANDA, Interactive Brokers) you write a class
+with the same methods (buy, sell) that places real orders and logs them the same way.
 """
 import uuid
 
@@ -13,17 +13,27 @@ def leverage_for(market):
     return config.MAX_LEVERAGE if market == "forex" else 1.0
 
 
+def buy_notional(market, cash):
+    """Position size in SEK for a new buy.
+
+    Capped by the max position size and by the cash left after paying the fee,
+    so the cash can never go negative.
+    """
+    lev = leverage_for(market)
+    target = config.START_CAPITAL_SEK[market] * config.MAX_POSITION_FRACTION * lev
+    return min(target, (cash - config.FEE_PER_TRADE_SEK) * lev)
+
+
 class PaperBroker:
     def buy(self, conn, market, symbol, price, currency, fx, reason=""):
         lev = leverage_for(market)
         cash = db.get_cash(conn, market)
 
-        target_notional = config.START_CAPITAL_SEK[market] * config.MAX_POSITION_FRACTION * lev
-        notional_sek = min(target_notional, cash * lev)
+        notional_sek = buy_notional(market, cash)
+        if notional_sek <= 0:
+            return None
         fill_price = price * (1 + config.SPREAD_PCT)
         qty = notional_sek / (fill_price * fx)
-        if qty <= 0:
-            return None
 
         notional_sek = qty * fill_price * fx
         margin = notional_sek / lev
@@ -80,7 +90,7 @@ class PaperBroker:
 
 
 def position_value_sek(pos, price, fx):
-    """Positionens nuvarande värde i SEK (bunden kassa + orealiserad vinst/förlust)."""
+    """Current value of the position in SEK (tied-up cash + unrealized profit/loss)."""
     lev = leverage_for(pos["market"])
     notional_now = pos["qty"] * price * fx
     cost_notional = pos["margin_sek"] * lev

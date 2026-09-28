@@ -1,46 +1,54 @@
 # Tradebot
 
-Paper trading-bot (fejkpengar) för forex och aktier med full transaktionslogg,
-riskregler, Telegram-notiser och årsexport i SEK för deklarationen.
+Paper trading bot (fake money) for forex and stocks with a full transaction log,
+risk rules, Telegram notifications and a yearly export in SEK for the Swedish tax return.
 
-Startkapital i simuleringen: 500 kr forex + 500 kr aktier (ändras i `config.py`).
+Starting capital in the simulation: 500 SEK forex + 500 SEK stocks (change in `config.py`).
 
-## Kom igång
+## Getting started
 
 ```bash
 python -m venv .venv
-source .venv/bin/activate        # Windows: .venv\Scripts\activate
+source .venv/Scripts/activate    # Git Bash on Windows. Linux/macOS: source .venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env             # fyll i Telegram om du vill ha notiser
-python main.py once              # kör en runda
-python main.py run               # kör i loop
+cp .env.example .env             # fill in Telegram if you want notifications
+python main.py once              # run one cycle
+python main.py run               # run in a loop
 ```
 
-## Kommandon
+## Commands
 
-| Kommando | Vad det gör |
+| Command | What it does |
 |---|---|
-| `python main.py once` | En runda: hämtar priser, tar beslut, loggar |
-| `python main.py run` | Loop, en runda per timme + daglig sammanfattning kl 22 |
-| `python main.py summary` | Visar saldo och öppna positioner |
-| `python main.py report --year 2026` | Skapar `exports/trades_2026.csv` och `exports/summary_2026.txt` |
+| `python main.py once` | One cycle: fetches prices, makes decisions, logs |
+| `python main.py run` | Loop, one cycle per hour + daily summary at 22:00 |
+| `python main.py summary` | Shows balance and open positions |
+| `python main.py report --year 2026` | Creates `exports/trades_2026.csv` and `exports/summary_2026.txt` |
+| `python tests/test_offline.py` | Offline tests, no network needed |
 
-## Vad som loggas
+## What is logged
 
-Allt hamnar i SQLite (`data/tradebot.db`): varje affär (datum, symbol, antal, pris,
-avgift, valuta, växelkurs till SEK, ordernummer), varje beslut med motivering,
-och kapitalkurvan över tid.
+Everything goes into SQLite (`data/tradebot.db`): every trade (date, symbol, quantity, price,
+fee, currency, exchange rate to SEK, order id), every decision with its reason,
+and the equity curve over time.
 
-## Säkerhet
+## How signals work
 
-- Stop-loss 5 % per position, max 50 % av kapitalet per position.
-- Daglig förlustgräns (10 %) och total förlustgräns (30 %).
-- Kill switch: skapa en tom fil som heter `STOP` i projektmappen, så köper boten inget mer.
-- API-nycklar ligger i `.env`, som ignoreras av git.
+The strategy is a moving average crossover (MA10/MA30) on daily closing prices.
+Only completed daily bars are used for the signal, since today's bar keeps changing.
+The same signal can only open a position once, so a stop-loss is not followed by an
+immediate rebuy on the same crossover.
 
-## Innan riktiga pengar
+## Safety
 
-Kör på paper i 4-8 veckor. Byt sedan `PaperBroker` mot en riktig mäklarklass
-(OANDA, Interactive Brokers) med samma metoder. Kolla mäklarens villkor för svenska kunder.
+- Stop-loss 5 % per position, max 50 % of the capital per position.
+- Daily loss limit (10 %) and total loss limit (30 %).
+- Kill switch: create an empty file called `STOP` in the project folder and the bot stops trading.
+- API keys live in `.env`, which is ignored by git.
 
-Detta är ett hobbyprojekt och ingen finansiell rådgivning. De flesta hemmabyggda botar förlorar pengar.
+## Before real money
+
+Run on paper for 4-8 weeks. Then replace `PaperBroker` with a real broker class
+(OANDA, Interactive Brokers) with the same methods. Check the broker's terms for Swedish customers.
+
+This is a hobby project and not financial advice. Most home-built bots lose money.

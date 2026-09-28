@@ -1,4 +1,4 @@
-"""Rapporter: årsexport (CSV + sammanfattning) och dagssammanfattning."""
+"""Reports: yearly export (CSV + summary) and daily summary."""
 import csv
 import os
 
@@ -12,7 +12,7 @@ CSV_COLUMNS = [
 
 
 def export_year(year, out_dir="exports", path=None):
-    """Skriver trades_<år>.csv och summary_<år>.txt. Returnerar (csv_path, summary_path, text)."""
+    """Writes trades_<year>.csv and summary_<year>.txt. Returns (csv_path, summary_path, text)."""
     os.makedirs(out_dir, exist_ok=True)
     start, end = f"{year}-01-01", f"{year + 1}-01-01"
 
@@ -38,7 +38,7 @@ def export_year(year, out_dir="exports", path=None):
 
 def build_summary(year, rows):
     sells = [r for r in rows if r["side"] == "sell"]
-    lines = [f"Årssammanfattning {year} (alla belopp i SEK)", "=" * 40]
+    lines = [f"Yearly summary {year} (all amounts in SEK)", "=" * 40]
 
     total_gain = total_loss = 0.0
     for market in ("stocks", "forex"):
@@ -48,29 +48,29 @@ def build_summary(year, rows):
         total_gain += gain
         total_loss += loss
         lines.append(
-            f"{market:7s} affärer: {len(pls):3d}   vinster: {gain:9.2f}   förluster: {loss:9.2f}   netto: {gain + loss:9.2f}"
+            f"{market:7s} trades: {len(pls):3d}   gains: {gain:9.2f}   losses: {loss:9.2f}   net: {gain + loss:9.2f}"
         )
 
     net = total_gain + total_loss
     fees = sum(r["fee_sek"] for r in rows)
     lines += [
         "-" * 40,
-        f"Summa vinster:   {total_gain:10.2f}",
-        f"Summa förluster: {total_loss:10.2f}",
-        f"Netto:           {net:10.2f}",
-        f"Avgifter totalt: {fees:10.2f} (redan inräknade i vinst/förlust)",
+        f"Total gains:  {total_gain:10.2f}",
+        f"Total losses: {total_loss:10.2f}",
+        f"Net:          {net:10.2f}",
+        f"Total fees:   {fees:10.2f} (already included in gains/losses)",
         "",
-        "Uppskattad skatt 30 % på nettovinst: "
-        + (f"{net * 0.30:.2f}" if net > 0 else "0.00 (nettoförlust, kan ge skatteavdrag)"),
+        "Estimated tax 30 % on net gain: "
+        + (f"{net * 0.30:.2f}" if net > 0 else "0.00 (net loss, may give a tax deduction)"),
         "",
-        "OBS: Underlag, inte skatterådgivning. Kontrollera Skatteverkets regler,",
-        "särskilt för CFD/forex, och jämför med mäklarens årsrapport.",
+        "NOTE: Supporting data, not tax advice. Check the Swedish Tax Agency's rules,",
+        "especially for CFD/forex, and compare with the broker's annual statement.",
     ]
     return "\n".join(lines) + "\n"
 
 
 def daily_summary(conn):
-    lines = ["Daglig sammanfattning"]
+    lines = ["Daily summary"]
     total = 0.0
     for market in ("forex", "stocks"):
         row = conn.execute(
@@ -79,13 +79,13 @@ def daily_summary(conn):
         eq = row["equity_sek"] if row else config.START_CAPITAL_SEK[market]
         total += eq
         start = config.START_CAPITAL_SEK[market]
-        lines.append(f"{market}: {eq:.0f} kr ({(eq / start - 1) * 100:+.1f} %)")
+        lines.append(f"{market}: {eq:.0f} SEK ({(eq / start - 1) * 100:+.1f} %)")
     start_total = sum(config.START_CAPITAL_SEK.values())
-    lines.append(f"Totalt: {total:.0f} kr ({(total / start_total - 1) * 100:+.1f} %)")
+    lines.append(f"Total: {total:.0f} SEK ({(total / start_total - 1) * 100:+.1f} %)")
 
     positions = db.all_positions(conn)
     if positions:
-        lines.append("Öppna positioner: " + ", ".join(f"{p['symbol']} ({p['qty']:.2f})" for p in positions))
+        lines.append("Open positions: " + ", ".join(f"{p['symbol']} ({p['qty']:.2f})" for p in positions))
     else:
-        lines.append("Inga öppna positioner")
+        lines.append("No open positions")
     return "\n".join(lines)

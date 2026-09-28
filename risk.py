@@ -1,4 +1,4 @@
-"""Riskregler. Alla köp går igenom här innan de får läggas."""
+"""Risk rules. Every buy goes through here before it may be placed."""
 import os
 from datetime import datetime, timezone
 
@@ -36,28 +36,42 @@ def daily_start_equity(conn):
     return sum(r["equity_sek"] for r in rows)
 
 
+def already_acted_on_bar(conn, symbol, bar_date):
+    """True if we have traded the symbol on or after the date of the signal bar.
+
+    A crossover on one bar stays visible until the next bar exists, so the hourly
+    loop sees the same signal many times. This stops a new buy on the same signal,
+    for example right after a stop-loss sold the position.
+    """
+    last = db.last_trade_ts(conn, symbol)
+    return last is not None and last[:10] >= bar_date
+
+
 def check_can_buy(conn, market, notional_sek, cash_sek, leverage):
-    """Returnerar (ok, anledning)."""
+    """Returns (ok, reason)."""
     if kill_switch_active():
-        return False, "kill switch aktiv"
+        return False, "kill switch active"
 
     start = total_start_capital()
     equity = total_equity(conn)
     if equity <= start * (1 - config.MAX_TOTAL_LOSS_PCT):
-        return False, "total förlustgräns nådd, boten är stoppad"
+        return False, "total loss limit reached, bot is stopped"
 
     day_start = daily_start_equity(conn)
     if day_start and equity <= day_start * (1 - config.MAX_DAILY_LOSS_PCT):
-        return False, "daglig förlustgräns nådd"
+        return False, "daily loss limit reached"
+
+    if notional_sek <= 0:
+        return False, "not enough cash"
 
     market_capital = config.START_CAPITAL_SEK[market]
     max_notional = market_capital * config.MAX_POSITION_FRACTION * leverage
     if notional_sek > max_notional + 1e-9:
-        return False, f"position {notional_sek:.0f} SEK över max {max_notional:.0f} SEK"
+        return False, f"position {notional_sek:.0f} SEK above max {max_notional:.0f} SEK"
 
     margin = notional_sek / leverage
-    if margin > cash_sek:
-        return False, "inte tillräckligt med kassa"
+    if margin + config.FEE_PER_TRADE_SEK > cash_sek + 1e-9:
+        return False, "not enough cash"
 
     return True, "ok"
 

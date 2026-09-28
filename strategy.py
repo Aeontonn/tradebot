@@ -1,14 +1,23 @@
-"""Enkel strategi: moving average crossover.
+"""Simple strategy: moving average crossover.
 
-Köpsignal när snabb MA korsar över långsam MA, sälj när den korsar under.
-Returnerar (signal, anteckning) där signal är 'buy', 'sell' eller 'hold'.
+Buy signal when the fast MA crosses above the slow MA, sell when it crosses below.
+Returns (signal, note) where signal is 'buy', 'sell' or 'hold'.
 """
 import config
 
 
+def completed_bars(close):
+    """Drop the latest daily bar, since it may still be forming.
+
+    yfinance includes today's unfinished bar, whose price changes every hour.
+    Using it would let a crossover appear and disappear during the day.
+    """
+    return close.iloc[:-1]
+
+
 def signal_for(close):
     if len(close) < config.SLOW_MA + 2:
-        return "hold", "för lite data"
+        return "hold", "not enough data"
 
     fast = close.rolling(config.FAST_MA).mean()
     slow = close.rolling(config.SLOW_MA).mean()
@@ -17,7 +26,7 @@ def signal_for(close):
     curr_diff = fast.iloc[-1] - slow.iloc[-1]
 
     if prev_diff <= 0 < curr_diff:
-        return "buy", f"MA{config.FAST_MA} korsade över MA{config.SLOW_MA}"
+        return "buy", f"MA{config.FAST_MA} crossed above MA{config.SLOW_MA}"
     if prev_diff >= 0 > curr_diff:
-        return "sell", f"MA{config.FAST_MA} korsade under MA{config.SLOW_MA}"
-    return "hold", "ingen korsning"
+        return "sell", f"MA{config.FAST_MA} crossed below MA{config.SLOW_MA}"
+    return "hold", "no crossover"

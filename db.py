@@ -1,4 +1,4 @@
-"""SQLite-logg. Alla affärer, beslut och kapitalkurva sparas här."""
+"""SQLite log. All trades, decisions and the equity curve are stored here."""
 import os
 import sqlite3
 from contextlib import contextmanager
@@ -10,17 +10,17 @@ SCHEMA = """
 CREATE TABLE IF NOT EXISTS trades (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     ts TEXT NOT NULL,
-    market TEXT NOT NULL,            -- 'forex' eller 'stocks'
+    market TEXT NOT NULL,            -- 'forex' or 'stocks'
     symbol TEXT NOT NULL,
-    side TEXT NOT NULL,              -- 'buy' eller 'sell'
+    side TEXT NOT NULL,              -- 'buy' or 'sell'
     qty REAL NOT NULL,
-    price REAL NOT NULL,             -- pris per styck i handelsvalutan
+    price REAL NOT NULL,             -- price per unit in the trading currency
     currency TEXT NOT NULL,
-    fee REAL NOT NULL DEFAULT 0,     -- avgift i handelsvalutan
-    fx_to_sek REAL NOT NULL,         -- växelkurs handelsvaluta -> SEK vid affären
+    fee REAL NOT NULL DEFAULT 0,     -- fee in the trading currency
+    fx_to_sek REAL NOT NULL,         -- exchange rate trading currency -> SEK at the trade
     value_sek REAL NOT NULL,         -- qty * price * fx_to_sek
     fee_sek REAL NOT NULL DEFAULT 0,
-    realized_pl_sek REAL,            -- fylls i vid sälj (genomsnittsmetoden)
+    realized_pl_sek REAL,            -- filled in on sell (average cost method)
     order_id TEXT,
     reason TEXT
 );
@@ -29,9 +29,9 @@ CREATE TABLE IF NOT EXISTS positions (
     symbol TEXT PRIMARY KEY,
     market TEXT NOT NULL,
     qty REAL NOT NULL,
-    margin_sek REAL NOT NULL,        -- bunden kassa (positionens värde / hävstång)
-    avg_cost_sek REAL NOT NULL,      -- snittkostnad per styck i SEK, inkl. avgift
-    avg_price REAL NOT NULL,         -- snittpris per styck i handelsvalutan
+    margin_sek REAL NOT NULL,        -- cash tied up (position value / leverage)
+    avg_cost_sek REAL NOT NULL,      -- average cost per unit in SEK, incl. fee
+    avg_price REAL NOT NULL,         -- average price per unit in the trading currency
     currency TEXT NOT NULL,
     stop_price REAL,
     opened_ts TEXT NOT NULL
@@ -50,7 +50,7 @@ CREATE TABLE IF NOT EXISTS equity (
     ts TEXT NOT NULL,
     market TEXT NOT NULL,
     cash_sek REAL NOT NULL,
-    equity_sek REAL NOT NULL         -- kassa + värde av öppna positioner
+    equity_sek REAL NOT NULL         -- cash + value of open positions
 );
 
 CREATE TABLE IF NOT EXISTS cash (
@@ -122,3 +122,9 @@ def get_position(conn, symbol):
 
 def all_positions(conn):
     return conn.execute("SELECT * FROM positions").fetchall()
+
+
+def last_trade_ts(conn, symbol):
+    """Timestamp of the latest trade in the symbol, or None."""
+    row = conn.execute("SELECT MAX(ts) AS ts FROM trades WHERE symbol = ?", (symbol,)).fetchone()
+    return row["ts"]
